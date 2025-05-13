@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dynamic Rainbow</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: linear-gradient(to bottom, #1a1a2e, #16213e);
+        }
+        #canvas-container {
+            width: 100%;
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            position: relative;
+        }
+    </style>
+    <script src="https://cdn.jsdelivr.net/npm/p5@1.8.0/lib/p5.js"></script>
+
+<base target="_self">
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <script>
+        const rainbow = function(p) {
+            let rainbowColors = [];
+            let particles = [];
+            let rainbowWidth = 50;
+            let rainbowHeight = 300;
+            let baseCurve = 200;
+            let mouseYInfluence = 0;
+            let canvasWidth, canvasHeight;
+            let lastMouseY = 0;
+            let sparkleTimer = 0;
+
+            p.setup = function() {
+                canvasWidth = Math.min(1200, window.innerWidth);
+                canvasHeight = Math.min(800, window.innerHeight);
+                let canvas = p.createCanvas(canvasWidth, canvasHeight);
+                canvas.parent('canvas-container');
+                
+                // Rainbow color palette (ROYGBIV)
+                rainbowColors = [
+                    p.color(255, 0, 0, 150),       // Red
+                    p.color(255, 127, 0, 150),    // Orange
+                    p.color(255, 255, 0, 150),     // Yellow
+                    p.color(0, 255, 0, 150),       // Green
+                    p.color(0, 0, 255, 150),      // Blue
+                    p.color(75, 0, 130, 150),      // Indigo
+                    p.color(148, 0, 211, 150)      // Violet
+                ];
+                
+                p.noStroke();
+                p.colorMode(p.RGB);
+            };
+
+            p.draw = function() {
+                p.clear();
+                drawBackground();
+                updateMouseInfluence();
+                drawRainbow();
+                updateParticles();
+                drawParticles();
+                
+                // Add occasional sparkles
+                sparkleTimer++;
+                if (sparkleTimer > 10 && p.random() > 0.95) {
+                    addSparkles();
+                    sparkleTimer = 0;
+                }
+            };
+
+            function drawBackground() {
+                // Gradient background
+                for (let y = 0; y < p.height; y++) {
+                    let inter = p.map(y, 0, p.height, 0, 1);
+                    let c = p.lerpColor(p.color(25, 25, 50), p.color(10, 10, 30), inter);
+                    p.stroke(c);
+                    p.line(0, y, p.width, y);
+                }
+            }
+
+            function updateMouseInfluence() {
+                // Smooth follow for mouse Y position
+                if (p.mouseY !== lastMouseY) {
+                    let target = p.map(p.mouseY, 0, p.height, -100, 100);
+                    mouseYInfluence = p.lerp(mouseYInfluence, target, 0.1);
+                    lastMouseY = p.mouseY;
+                }
+            }
+
+            function drawRainbow() {
+                let centerX = p.width / 2;
+                let centerY = p.height / 2;
+                let curveHeight = baseCurve + mouseYInfluence;
+                
+                for (let i = 0; i < rainbowColors.length; i++) {
+                    let bandWidth = rainbowWidth / rainbowColors.length;
+                    let outerRadius = rainbowHeight - (i * bandWidth);
+                    let innerRadius = outerRadius - bandWidth;
+                    
+                    p.fill(rainbowColors[i]);
+                    drawRainbowBand(centerX, centerY, innerRadius, outerRadius, curveHeight);
+                }
+            }
+
+            function drawRainbowBand(cx, cy, innerR, outerR, curve) {
+                p.beginShape();
+                for (let angle = 0; angle <= p.PI; angle += 0.05) {
+                    // Outer curve
+                    let x = cx + p.cos(angle) * outerR;
+                    let y = cy - p.sin(angle) * (outerR * 0.3) + p.sin(angle * 2) * curve;
+                    p.vertex(x, y);
+                }
+                
+                for (let angle = p.PI; angle >= 0; angle -= 0.05) {
+                    // Inner curve
+                    let x = cx + p.cos(angle) * innerR;
+                    let y = cy - p.sin(angle) * (innerR * 0.3) + p.sin(angle * 2) * curve;
+                    p.vertex(x, y);
+                }
+                p.endShape(p.CLOSE);
+            }
+
+            function addSparkles() {
+                // Add sparkles along the rainbow path
+                for (let i = 0; i < 5; i++) {
+                    let angle = p.random(p.PI);
+                    let radius = p.random(rainbowHeight - rainbowWidth, rainbowHeight);
+                    let x = p.width/2 + p.cos(angle) * radius;
+                    let y = p.height/2 - p.sin(angle) * (radius * 0.3) + p.sin(angle * 2) * (baseCurve + mouseYInfluence);
+                    
+                    particles.push({
+                        x: x,
+                        y: y,
+                        size: p.random(2, 5),
+                        life: p.random(30, 90),
+                        color: p.color(255, 255, 255, p.random(150, 220)),
+                        speed: p.createVector(p.random(-0.5, 0.5), p.random(-0.5, 0.5))
+                    });
+                }
+            }
+
+            function updateParticles() {
+                for (let i = particles.length - 1; i >= 0; i--) {
+                    particles[i].x += particles[i].speed.x;
+                    particles[i].y += particles[i].speed.y;
+                    particles[i].life--;
+                    
+                    if (particles[i].life <= 0) {
+                        particles.splice(i, 1);
+                    }
+                }
+            }
+
+            function drawParticles() {
+                for (let particle of particles) {
+                    p.fill(particle.color);
+                    p.circle(particle.x, particle.y, particle.size);
+                }
+            }
+
+            p.mousePressed = function() {
+                // Add more sparkles on click
+                for (let i = 0; i < 15; i++) {
+                    particles.push({
+                        x: p.mouseX + p.random(-20, 20),
+                        y: p.mouseY + p.random(-20, 20),
+                        size: p.random(3, 8),
+                        life: p.random(40, 100),
+                        color: p.color(255, 255, 255, p.random(180, 240)),
+                        speed: p.createVector(p.random(-2, 2), p.random(-2, 2))
+                    });
+                }
+            };
+
+            p.windowResized = function() {
+                canvasWidth = Math.min(1200, window.innerWidth);
+                canvasHeight = Math.min(800, window.innerHeight);
+                p.resizeCanvas(canvasWidth, canvasHeight);
+            };
+        };
+
+        new p5(rainbow);
+    </script>
+</body>
+</html>
